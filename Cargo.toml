@@ -5,6 +5,7 @@ authors = ["Grzegorz Bartoszek <grze.bartoszek@gmail.com>"]
 edition = "2018"
 license = "MIT"
 repository = "https://github.com/g-bartoszek/pms-7003"
+description = "Rust interface for PMS 7003 air quality sensor"
 
 [dependencies]
 embedded-hal = "0.2.3"
