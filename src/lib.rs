@@ -4,6 +4,11 @@ use embedded_hal::serial::{Read, Write};
 use nb::block;
 use scroll::{Pread, Pwrite, BE};
 
+const CMD_FRAME_SIZE: usize = 7;
+const OUTPUT_FRAME_SIZE: usize = 32;
+const RESPONSE_FRAME_SIZE: usize = 8;
+const CHECKSUM_SIZE: usize = 2;
+
 /// Sensor interface
 pub struct Pms7003Sensor<Serial>
 where
@@ -11,11 +16,6 @@ where
 {
     serial: Serial,
 }
-
-const CMD_FRAME_SIZE: usize = 7;
-const OUTPUT_FRAME_SIZE: usize = 32;
-const RESPONSE_FRAME_SIZE: usize = 8;
-const CHECKSUM_SIZE: usize = 2;
 
 impl<Serial> Pms7003Sensor<Serial>
 where
