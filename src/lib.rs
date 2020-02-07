@@ -15,6 +15,7 @@ where
 const CMD_FRAME_SIZE: usize = 7;
 const OUTPUT_FRAME_SIZE: usize = 32;
 const RESPONSE_FRAME_SIZE: usize = 8;
+const CHECKSUM_SIZE: usize = 2;
 
 impl<Serial> Pms7003Sensor<Serial>
 where
@@ -103,8 +104,9 @@ fn create_command(cmd: u8, data: u16) -> [u8; CMD_FRAME_SIZE] {
     buffer.gwrite::<u8>(cmd, &mut offset).unwrap();
     buffer.gwrite_with::<u16>(data, &mut offset, BE).unwrap();
 
-    let checksum = buffer[0..CMD_FRAME_SIZE - 2]
+    let checksum = buffer
         .iter()
+        .take(CMD_FRAME_SIZE - CHECKSUM_SIZE)
         .map(|b| *b as u16)
         .sum::<u16>();
     buffer
@@ -138,7 +140,7 @@ pub struct OutputFrame {
 
 impl OutputFrame {
     pub fn from_buffer(buffer: &[u8; OUTPUT_FRAME_SIZE]) -> Result<Self, &'static str> {
-        let sum: usize = buffer.iter().take(30).map(|e| *e as usize).sum();
+        let sum: usize = buffer.iter().take(OUTPUT_FRAME_SIZE - CHECKSUM_SIZE).map(|e| *e as usize).sum();
 
         let mut frame = OutputFrame::default();
         let mut offset = 0usize;
