@@ -4,6 +4,7 @@ use embedded_hal::serial::{Read, Write};
 use nb::block;
 use scroll::{Pread, Pwrite, BE};
 
+/// Sensor interface
 pub struct Pms7003Sensor<Serial>
 where
     Serial: Read<u8> + Write<u8>,
@@ -19,16 +20,13 @@ impl<Serial> Pms7003Sensor<Serial>
 where
     Serial: Read<u8> + Write<u8>,
 {
-    ///
-    /// Creates a new sensor instance using a single object implementing embedded hal serial traits
-    ///
+    /// Creates a new sensor instance
+    /// * `serial` - single object implementing embedded hal serial traits
     pub fn new(serial: Serial) -> Self {
         Self { serial }
     }
 
-    ///
     /// Reads sensor status. Blocks until status is available.
-    ///
     pub fn read(&mut self) -> Result<OutputFrame, &str> {
         let mut buffer = [0_u8; OUTPUT_FRAME_SIZE];
 
@@ -60,25 +58,19 @@ where
         self.receive_response()
     }
 
-    ///
     /// Passive mode - sensor reports air quality on request
-    ///
     pub fn passive(&mut self) -> Result<(), &'static str> {
         self.send_cmd(&create_command(0xe1, 0))?;
         self.receive_response()
     }
 
-    ///
     /// Active mode - sensor reports air quality continuously
-    ///
     pub fn active(&mut self) -> Result<(), &'static str> {
         self.send_cmd(&create_command(0xe1, 1))?;
         self.receive_response()
     }
 
-    ///
     /// Requests status in passive mode
-    ///
     pub fn request(&mut self) -> Result<(), &'static str> {
         self.send_cmd(&create_command(0xe2, 0))
     }
@@ -122,7 +114,7 @@ fn create_command(cmd: u8, data: u16) -> [u8; CMD_FRAME_SIZE] {
     buffer
 }
 
-
+/// Contains data reported by the sensor
 #[derive(Default, Debug)]
 pub struct OutputFrame {
     pub start1: u8,
@@ -182,9 +174,9 @@ where
     TX: Write<u8>,
     RX: Read<u8>,
 {
-    ///
-    /// Creates a new sensor instance using separate Read and Write embedded hal trait objects
-    ///
+    /// Creates a new sensor instance
+    /// * `tx` - embedded hal serial Write
+    /// * `rx` - embedded hal serial Read
     pub fn new_tx_rx(tx: TX, rx: RX) -> Self {
         Self {
             serial: Wrapper(tx, rx),
@@ -192,9 +184,7 @@ where
     }
 }
 
-///
 /// Combines two serial traits objects into one
-///
 pub struct Wrapper<TX, RX>(TX, RX)
 where
     TX: Write<u8>,
