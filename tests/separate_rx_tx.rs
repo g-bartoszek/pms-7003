@@ -22,10 +22,12 @@ impl embedded_hal::serial::Write<u8> for TxMock {
         Ok(())
     }
 }
-fn main() {
+
+#[test]
+fn crate_instance_using_separate_rx_tx() {
     let tx = TxMock {};
     let rx = RxMock {};
 
     let mut pms = Pms7003Sensor::new_tx_rx(tx, rx);
-    pms.read().unwrap();
+    pms.sleep().unwrap();
 }
