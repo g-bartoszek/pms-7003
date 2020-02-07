@@ -14,7 +14,9 @@ fn main() {
     let mut sensor = Pms7003Sensor::new(device);
 
     loop {
-        let frame = sensor.read().unwrap();
-        println!("{:?}", frame);
+        match sensor.read() {
+            Ok(frame) => println!("{:?}", frame),
+            Err(e) => println!("{}", e),
+        }
     }
 }

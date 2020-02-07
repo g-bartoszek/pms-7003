@@ -28,7 +28,9 @@ fn main() {
     std::thread::sleep(Duration::from_secs(1));
 
     loop {
-        let frame = sensor.read().unwrap();
-        println!("{:?}", frame);
+        match sensor.read() {
+            Ok(frame) => println!("{:?}", frame),
+            Err(e) => println!("{}", e),
+        }
     }
 }
