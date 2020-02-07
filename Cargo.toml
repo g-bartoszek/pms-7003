@@ -1,0 +1,13 @@
+[package]
+name = "pms-7003"
+version = "0.1.0"
+authors = ["Grzegorz Bartoszek <grze.bartoszek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+embedded-hal = "0.2.3"
+scroll = "0.10.1"
+nb = "0.1.2"
+
+[dev-dependencies]
+linux-embedded-hal = "0.3.0"
