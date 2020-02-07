@@ -140,7 +140,11 @@ pub struct OutputFrame {
 
 impl OutputFrame {
     pub fn from_buffer(buffer: &[u8; OUTPUT_FRAME_SIZE]) -> Result<Self, &'static str> {
-        let sum: usize = buffer.iter().take(OUTPUT_FRAME_SIZE - CHECKSUM_SIZE).map(|e| *e as usize).sum();
+        let sum: usize = buffer
+            .iter()
+            .take(OUTPUT_FRAME_SIZE - CHECKSUM_SIZE)
+            .map(|e| *e as usize)
+            .sum();
 
         let mut frame = OutputFrame::default();
         let mut offset = 0usize;
