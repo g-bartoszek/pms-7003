@@ -1,4 +1,4 @@
-//#![no_std]
+#![no_std]
 
 use embedded_hal::serial::{Read, Write};
 use nb::block;
@@ -170,7 +170,6 @@ impl OutputFrame {
         frame.check = buffer.gread_with::<u16>(&mut offset, BE).unwrap();
 
         if sum != frame.check as usize {
-            println!("{:x?}", buffer);
             return Err("Checksum error");
         }
 
