@@ -23,7 +23,13 @@ where
 {
     /// Creates a new sensor instance
     /// * `serial` - single object implementing embedded hal serial traits
-    pub fn new(serial: Serial) -> Self {
+    pub fn new(mut serial: Serial) -> Self {
+        loop {
+            if serial.read().is_err() {
+                break;
+            }
+        }
+
         Self { serial }
     }
 
@@ -43,20 +49,18 @@ where
         buffer[0] = 0x42;
         buffer[1] = 0x4d;
 
-        for byte in buffer.iter_mut().skip(2) {
-            *byte = self.read_byte()?;
-        }
+        let _ = self.try_reading_n_bytes(OUTPUT_FRAME_SIZE - 2, &mut buffer[2..]);
 
         OutputFrame::from_buffer(&buffer)
     }
 
     pub fn sleep(&mut self) -> Result<(), &'static str> {
-        self.send_cmd(&create_command(0xe4, 0))
+        self.send_cmd(&create_command(0xe4, 0))?;
+        self.receive_response()
     }
 
     pub fn wake(&mut self) -> Result<(), &'static str> {
-        self.send_cmd(&create_command(0xe4, 1))?;
-        self.receive_response()
+        self.send_cmd(&create_command(0xe4, 1))
     }
 
     /// Passive mode - sensor reports air quality on request
@@ -84,14 +88,24 @@ where
     }
 
     fn receive_response(&mut self) -> Result<(), &'static str> {
-        for _ in 0..RESPONSE_FRAME_SIZE {
-            self.read_byte().map_err(|_| "Error reading response")?;
-        }
+        let mut _resp = [0u8; RESPONSE_FRAME_SIZE];
+        let _ = self.try_reading_n_bytes(RESPONSE_FRAME_SIZE, &mut _resp);
         Ok(())
     }
 
     fn read_byte(&mut self) -> Result<u8, &'static str> {
         Ok(block!(self.serial.read()).map_err(|_| "Read error")?)
+    }
+
+    fn try_reading_n_bytes(&mut self, n: usize, buffer: &mut [u8]) -> Result<(), &str> {
+        for byte in buffer.iter_mut().take(n) {
+            match self.serial.read() {
+                Ok(input_byte) => *byte = input_byte,
+                Err(nb::Error::WouldBlock) => return Err("Read fewer bytes than expected"),
+                _ => return Err("Read error"),
+            }
+        }
+        Ok(())
     }
 }
 
@@ -184,9 +198,7 @@ where
     /// * `tx` - embedded hal serial Write
     /// * `rx` - embedded hal serial Read
     pub fn new_tx_rx(tx: TX, rx: RX) -> Self {
-        Self {
-            serial: Wrapper(tx, rx),
-        }
+        Self::new(Wrapper(tx, rx))
     }
 }
 
