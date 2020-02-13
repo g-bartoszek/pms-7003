@@ -9,6 +9,13 @@ const OUTPUT_FRAME_SIZE: usize = 32;
 const RESPONSE_FRAME_SIZE: usize = 8;
 const CHECKSUM_SIZE: usize = 2;
 
+#[derive(Debug)]
+pub enum Error {
+    SendFailed,
+    ReadFailed,
+    ChecksumError,
+}
+
 /// Sensor interface
 pub struct Pms7003Sensor<Serial>
 where
@@ -34,7 +41,7 @@ where
     }
 
     /// Reads sensor status. Blocks until status is available.
-    pub fn read(&mut self) -> Result<OutputFrame, &str> {
+    pub fn read(&mut self) -> Result<OutputFrame, Error> {
         let mut buffer = [0_u8; OUTPUT_FRAME_SIZE];
 
         loop {
@@ -54,47 +61,47 @@ where
         OutputFrame::from_buffer(&buffer)
     }
 
-    pub fn sleep(&mut self) -> Result<(), &'static str> {
+    pub fn sleep(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe4, 0))?;
         self.receive_response()
     }
 
-    pub fn wake(&mut self) -> Result<(), &'static str> {
+    pub fn wake(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe4, 1))
     }
 
     /// Passive mode - sensor reports air quality on request
-    pub fn passive(&mut self) -> Result<(), &'static str> {
+    pub fn passive(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe1, 0))?;
         self.receive_response()
     }
 
     /// Active mode - sensor reports air quality continuously
-    pub fn active(&mut self) -> Result<(), &'static str> {
+    pub fn active(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe1, 1))?;
         self.receive_response()
     }
 
     /// Requests status in passive mode
-    pub fn request(&mut self) -> Result<(), &'static str> {
+    pub fn request(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe2, 0))
     }
 
-    fn send_cmd(&mut self, cmd: &[u8]) -> Result<(), &'static str> {
+    fn send_cmd(&mut self, cmd: &[u8]) -> Result<(), Error> {
         for byte in cmd {
-            block!(self.serial.write(*byte)).map_err(|_| "Error sending command")?;
+            block!(self.serial.write(*byte)).map_err(|_| Error::SendFailed)?;
         }
         Ok(())
     }
 
-    fn receive_response(&mut self) -> Result<(), &'static str> {
+    fn receive_response(&mut self) -> Result<(), Error> {
         let mut _resp = [0u8; RESPONSE_FRAME_SIZE];
         let _ = self.try_reading_n_bytes(RESPONSE_FRAME_SIZE, &mut _resp);
         Ok(())
     }
 
-    fn read_byte(&mut self) -> Result<u8, &'static str> {
-        Ok(block!(self.serial.read()).map_err(|_| "Read error")?)
+    fn read_byte(&mut self) -> Result<u8, Error> {
+        Ok(block!(self.serial.read()).map_err(|_| Error::ReadFailed)?)
     }
 
     fn try_reading_n_bytes(&mut self, n: usize, buffer: &mut [u8]) -> Result<(), &str> {
@@ -153,7 +160,7 @@ pub struct OutputFrame {
 }
 
 impl OutputFrame {
-    pub fn from_buffer(buffer: &[u8; OUTPUT_FRAME_SIZE]) -> Result<Self, &'static str> {
+    pub fn from_buffer(buffer: &[u8; OUTPUT_FRAME_SIZE]) -> Result<Self, Error> {
         let sum: usize = buffer
             .iter()
             .take(OUTPUT_FRAME_SIZE - CHECKSUM_SIZE)
@@ -182,7 +189,7 @@ impl OutputFrame {
         frame.check = buffer.gread_with::<u16>(&mut offset, BE).unwrap();
 
         if sum != frame.check as usize {
-            return Err("Checksum error");
+            return Err(Error::ChecksumError);
         }
 
         Ok(frame)

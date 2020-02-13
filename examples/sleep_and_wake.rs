@@ -21,7 +21,7 @@ fn main() {
     loop {
         match sensor.read() {
             Ok(frame) => println!("{:?}", frame),
-            Err(e) => println!("{}", e),
+            Err(e) => println!("{:?}", e),
         }
     }
 }
