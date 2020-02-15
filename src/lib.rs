@@ -67,9 +67,17 @@ where
                         buffer[0] = 0x42;
                         buffer[1] = 0x4d;
 
-                        for byte in buffer.iter_mut().skip(2) {
+                        let mut bytes_read = 0;
+                        let mut i = 2usize;
+
+                        while bytes_read != (buffer.len() - 2) {
                             match self.serial.read() {
-                                Ok(input_byte) => *byte = input_byte,
+                                Ok(input_byte) => {
+                                    buffer[i] = input_byte;
+                                    i += 1;
+                                    bytes_read += 1;
+                                },
+                                Err(nb::Error::WouldBlock) => continue,
                                 _ => return Err(Error::ReadFailed),
                             }
                         }
