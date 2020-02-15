@@ -9,11 +9,19 @@ const OUTPUT_FRAME_SIZE: usize = 32;
 const RESPONSE_FRAME_SIZE: usize = 8;
 const CHECKSUM_SIZE: usize = 2;
 
+type Response = [u8; RESPONSE_FRAME_SIZE];
+
+const PASSIVE_MODE_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE1, 0x00, 0x01, 0x74];
+const ACTIVE_MODE_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE1, 0x01, 0x01, 0x75];
+const SLEEP_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE4, 0x00, 0x01, 0x77];
+
 #[derive(Debug)]
 pub enum Error {
     SendFailed,
     ReadFailed,
     ChecksumError,
+    IncorrectResponse,
+    NoResponse,
 }
 
 /// Sensor interface
@@ -63,7 +71,7 @@ where
 
     pub fn sleep(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe4, 0))?;
-        self.receive_response()
+        self.receive_response(SLEEP_RESPONSE)
     }
 
     pub fn wake(&mut self) -> Result<(), Error> {
@@ -73,13 +81,13 @@ where
     /// Passive mode - sensor reports air quality on request
     pub fn passive(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe1, 0))?;
-        self.receive_response()
+        self.receive_response(PASSIVE_MODE_RESPONSE)
     }
 
     /// Active mode - sensor reports air quality continuously
     pub fn active(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe1, 1))?;
-        self.receive_response()
+        self.receive_response(ACTIVE_MODE_RESPONSE)
     }
 
     /// Requests status in passive mode
@@ -94,10 +102,15 @@ where
         Ok(())
     }
 
-    fn receive_response(&mut self) -> Result<(), Error> {
-        let mut _resp = [0u8; RESPONSE_FRAME_SIZE];
-        let _ = self.try_reading_n_bytes(RESPONSE_FRAME_SIZE, &mut _resp);
-        Ok(())
+    fn receive_response(&mut self, expected_response: Response) -> Result<(), Error> {
+        let mut resp = [0u8; RESPONSE_FRAME_SIZE];
+        self.try_reading_n_bytes(RESPONSE_FRAME_SIZE, &mut resp)
+            .map_err(|_| Error::NoResponse)?;
+        if resp != expected_response {
+            Err(Error::IncorrectResponse)
+        } else {
+            Ok(())
+        }
     }
 
     fn read_byte(&mut self) -> Result<u8, Error> {
