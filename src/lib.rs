@@ -48,24 +48,46 @@ where
         Self { serial }
     }
 
-    /// Reads sensor status. Blocks until status is available.
-    pub fn read(&mut self) -> Result<OutputFrame, Error> {
-        let mut buffer = [0_u8; OUTPUT_FRAME_SIZE];
-
-        loop {
-            if self.read_byte()? != 0x42 {
-                continue;
+    fn read_from_device(&mut self, buffer: &mut [u8]) -> Result<(), Error> {
+        // poor man's timeout
+        for _ in 0..100 {
+            match self.serial.read() {
+                Ok(b) => {
+                    if b != 0x42 {
+                        continue;
+                    }
+                }
+                Err(nb::Error::WouldBlock) => continue,
+                _ => return Err(Error::ReadFailed),
             }
-            if self.read_byte()? == 0x4d {
-                break;
+
+            match self.serial.read() {
+                Ok(b) => {
+                    if b == 0x4d {
+                        buffer[0] = 0x42;
+                        buffer[1] = 0x4d;
+
+                        for byte in buffer.iter_mut().skip(2) {
+                            match self.serial.read() {
+                                Ok(input_byte) => *byte = input_byte,
+                                _ => return Err(Error::ReadFailed),
+                            }
+                        }
+
+                        return Ok(());
+                    }
+                }
+                _ => return Err(Error::ReadFailed),
             }
         }
 
-        buffer[0] = 0x42;
-        buffer[1] = 0x4d;
+        Err(Error::NoResponse)
+    }
 
-        let _ = self.try_reading_n_bytes(OUTPUT_FRAME_SIZE - 2, &mut buffer[2..]);
-
+    /// Reads sensor status. Blocks until status is available.
+    pub fn read(&mut self) -> Result<OutputFrame, Error> {
+        let mut buffer = [0_u8; OUTPUT_FRAME_SIZE];
+        self.read_from_device(&mut buffer)?;
         OutputFrame::from_buffer(&buffer)
     }
 
@@ -104,8 +126,8 @@ where
 
     fn receive_response(&mut self, expected_response: Response) -> Result<(), Error> {
         let mut resp = [0u8; RESPONSE_FRAME_SIZE];
-        self.try_reading_n_bytes(RESPONSE_FRAME_SIZE, &mut resp)
-            .map_err(|_| Error::NoResponse)?;
+        self.read_from_device(&mut resp)?;
+
         if resp != expected_response {
             Err(Error::IncorrectResponse)
         } else {
@@ -113,20 +135,6 @@ where
         }
     }
 
-    fn read_byte(&mut self) -> Result<u8, Error> {
-        Ok(block!(self.serial.read()).map_err(|_| Error::ReadFailed)?)
-    }
-
-    fn try_reading_n_bytes(&mut self, n: usize, buffer: &mut [u8]) -> Result<(), &str> {
-        for byte in buffer.iter_mut().take(n) {
-            match self.serial.read() {
-                Ok(input_byte) => *byte = input_byte,
-                Err(nb::Error::WouldBlock) => return Err("Read fewer bytes than expected"),
-                _ => return Err("Read error"),
-            }
-        }
-        Ok(())
-    }
 }
 
 fn create_command(cmd: u8, data: u16) -> [u8; CMD_FRAME_SIZE] {
