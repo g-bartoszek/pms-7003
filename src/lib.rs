@@ -4,6 +4,8 @@ use embedded_hal::serial::{Read, Write};
 use nb::block;
 use scroll::{Pread, Pwrite, BE};
 
+mod read_fsm;
+
 const CMD_FRAME_SIZE: usize = 7;
 const OUTPUT_FRAME_SIZE: usize = 32;
 const RESPONSE_FRAME_SIZE: usize = 8;
@@ -76,7 +78,7 @@ where
                                     buffer[i] = input_byte;
                                     i += 1;
                                     bytes_read += 1;
-                                },
+                                }
                                 Err(nb::Error::WouldBlock) => continue,
                                 _ => return Err(Error::ReadFailed),
                             }
@@ -142,7 +144,6 @@ where
             Ok(())
         }
     }
-
 }
 
 fn create_command(cmd: u8, data: u16) -> [u8; CMD_FRAME_SIZE] {

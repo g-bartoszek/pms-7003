@@ -7,7 +7,7 @@ impl embedded_hal::serial::Read<u8> for RxMock {
     type Error = ();
 
     fn read(&mut self) -> nb::Result<u8, Self::Error> {
-        Ok(0)
+        Err(nb::Error::Other::<()>(()))
     }
 }
 
@@ -29,5 +29,5 @@ fn crate_instance_using_separate_rx_tx() {
     let rx = RxMock {};
 
     let mut pms = Pms7003Sensor::new_tx_rx(tx, rx);
-    pms.sleep().unwrap();
+    let _ = pms.sleep();
 }
