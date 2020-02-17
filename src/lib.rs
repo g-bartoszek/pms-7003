@@ -13,9 +13,11 @@ const CHECKSUM_SIZE: usize = 2;
 
 type Response = [u8; RESPONSE_FRAME_SIZE];
 
-const PASSIVE_MODE_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE1, 0x00, 0x01, 0x74];
-const ACTIVE_MODE_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE1, 0x01, 0x01, 0x75];
-const SLEEP_RESPONSE: Response = [0x42, 0x4D, 0x00, 0x04, 0xE4, 0x00, 0x01, 0x77];
+pub const MN1: u8 = 0x42;
+pub const MN2: u8 = 0x42;
+const PASSIVE_MODE_RESPONSE: Response = [MN1, MN1, 0x00, 0x04, 0xE1, 0x00, 0x01, 0x74];
+const ACTIVE_MODE_RESPONSE: Response = [MN1, MN2, 0x00, 0x04, 0xE1, 0x01, 0x01, 0x75];
+const SLEEP_RESPONSE: Response = [MN1, MN2, 0x00, 0x04, 0xE4, 0x00, 0x01, 0x77];
 
 #[derive(Debug)]
 pub enum Error {
@@ -61,7 +63,6 @@ where
                 ReadStatus::InProgress => {}
             }
         }
-
     }
 
     /// Reads sensor status. Blocks until status is available.
@@ -120,8 +121,8 @@ fn create_command(cmd: u8, data: u16) -> [u8; CMD_FRAME_SIZE] {
     let mut buffer = [0_u8; CMD_FRAME_SIZE];
     let mut offset = 0usize;
 
-    buffer.gwrite::<u8>(0x42, &mut offset).unwrap();
-    buffer.gwrite::<u8>(0x4d, &mut offset).unwrap();
+    buffer.gwrite::<u8>(MN1, &mut offset).unwrap();
+    buffer.gwrite::<u8>(MN2, &mut offset).unwrap();
     buffer.gwrite::<u8>(cmd, &mut offset).unwrap();
     buffer.gwrite_with::<u16>(data, &mut offset, BE).unwrap();
 

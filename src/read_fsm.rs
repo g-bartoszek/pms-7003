@@ -1,3 +1,5 @@
+use crate::{MN1, MN2};
+
 #[derive(PartialEq, Debug)]
 pub enum ReadStatus {
     InProgress,
@@ -40,8 +42,8 @@ impl<'a> ReadStateMachine<'a> {
 
     fn magic_number_read(&mut self) {
         self.index = 2;
-        self.buffer[0] = 0x42;
-        self.buffer[1] = 0x4D;
+        self.buffer[0] = MN1;
+        self.buffer[1] = MN2;
         self.state = State::Reading;
     }
 
@@ -56,11 +58,11 @@ impl<'a> ReadStateMachine<'a> {
     pub fn update<E>(&mut self, read_result: Result<u8, nb::Error<E>>) -> ReadStatus {
         match self.state {
             State::WaitingForFirstMagicNumber => match read_result {
-                Ok(byte) if byte == 0x42 => self.state = State::WaitingForSecondMagicNumber,
+                Ok(byte) if byte == MN1 => self.state = State::WaitingForSecondMagicNumber,
                 _ => self.retry(),
             },
             State::WaitingForSecondMagicNumber => match read_result {
-                Ok(byte) if byte == 0x4D => self.magic_number_read(),
+                Ok(byte) if byte == MN2 => self.magic_number_read(),
                 Ok(_) => self.state = State::WaitingForFirstMagicNumber,
                 _ => self.retry(),
             },
@@ -94,11 +96,17 @@ mod tests {
         }
     }
 
+    fn read_sequence(fsm: &mut ReadStateMachine, sequence: &[Result<u8, nb::Error<()>>]) {
+        sequence.iter().for_each(|byte| {
+            fsm.update(*byte);
+        })
+    }
+
     #[test]
     fn read_is_in_progress_until_finished() {
         let mut buffer = [0u8; 2];
         let mut fsm = create_test_fsm(&mut buffer, 0);
-        assert_eq!(ReadStatus::InProgress, fsm.update::<()>(Ok(0x42)));
+        assert_eq!(ReadStatus::InProgress, fsm.update::<()>(Ok(MN1)));
     }
 
     #[test]
@@ -106,12 +114,10 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 0);
 
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x4D));
-        fsm.update::<()>(Ok(0x11));
+        read_sequence(&mut fsm, &[Ok(MN1), Ok(MN2), Ok(0x11)]);
 
         assert_eq!(ReadStatus::Finished, fsm.update::<()>(Ok(0x33)));
-        assert_eq!([0x42, 0x4D, 0x11, 0x33], buffer);
+        assert_eq!([MN1, MN2, 0x11, 0x33], buffer);
     }
 
     #[test]
@@ -119,17 +125,22 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 5);
 
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x4D));
-        fsm.update::<()>(Ok(0x11));
+        read_sequence(
+            &mut fsm,
+            &[
+                Ok(0x00),
+                Ok(0x00),
+                Ok(0x00),
+                Ok(0x00),
+                Ok(0x00),
+                Ok(MN1),
+                Ok(MN2),
+                Ok(0x11),
+            ],
+        );
 
         assert_eq!(fsm.update::<()>(Ok(0x33)), ReadStatus::Finished);
-        assert_eq!([0x42, 0x4D, 0x11, 0x33], buffer);
+        assert_eq!([MN1, MN2, 0x11, 0x33], buffer);
     }
 
     #[test]
@@ -137,15 +148,13 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 2);
 
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x4D));
-        fsm.update::<()>(Ok(0x11));
+        read_sequence(
+            &mut fsm,
+            &[Ok(MN1), Ok(0x00), Ok(0x00), Ok(MN1), Ok(MN2), Ok(0x11)],
+        );
 
         assert_eq!(fsm.update::<()>(Ok(0x33)), ReadStatus::Finished);
-        assert_eq!(buffer, [0x42, 0x4D, 0x11, 0x33]);
+        assert_eq!(buffer, [MN1, MN2, 0x11, 0x33]);
     }
 
     #[test]
@@ -153,9 +162,8 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 3);
 
-        fsm.update::<()>(Ok(0x00));
-        fsm.update::<()>(Err(nb::Error::WouldBlock));
-        fsm.update::<()>(Ok(0x00));
+        read_sequence(&mut fsm, &[Ok(0x00), Err(nb::Error::WouldBlock), Ok(0x00)]);
+
         assert_eq!(fsm.update::<()>(Ok(0x33)), ReadStatus::Failed);
     }
 
@@ -164,10 +172,19 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 2);
 
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Err(nb::Error::WouldBlock));
-        fsm.update::<()>(Err(nb::Error::Other(())));
-        assert_eq!(fsm.update::<()>(Err(nb::Error::WouldBlock)), ReadStatus::Failed);
+        read_sequence(
+            &mut fsm,
+            &[
+                Ok(MN1),
+                Err(nb::Error::WouldBlock),
+                Err(nb::Error::Other(())),
+            ],
+        );
+
+        assert_eq!(
+            fsm.update::<()>(Err(nb::Error::WouldBlock)),
+            ReadStatus::Failed
+        );
     }
 
     #[test]
@@ -175,14 +192,19 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 3);
 
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x4D));
-        fsm.update::<()>(Err(nb::Error::WouldBlock));
-        fsm.update::<()>(Err(nb::Error::Other(())));
-        fsm.update::<()>(Ok(0x11));
+        read_sequence(
+            &mut fsm,
+            &[
+                Ok(MN1),
+                Ok(MN2),
+                Err(nb::Error::WouldBlock),
+                Err(nb::Error::Other(())),
+                Ok(0x11),
+            ],
+        );
 
         assert_eq!(ReadStatus::Finished, fsm.update::<()>(Ok(0x33)));
-        assert_eq!([0x42, 0x4D, 0x11, 0x33], buffer);
+        assert_eq!([MN1, MN2, 0x11, 0x33], buffer);
     }
 
     #[test]
@@ -190,10 +212,19 @@ mod tests {
         let mut buffer = [0u8; 4];
         let mut fsm = create_test_fsm(&mut buffer, 2);
 
-        fsm.update::<()>(Ok(0x42));
-        fsm.update::<()>(Ok(0x4D));
-        fsm.update::<()>(Err(nb::Error::WouldBlock));
-        fsm.update::<()>(Err(nb::Error::WouldBlock));
-        assert_eq!(ReadStatus::Failed, fsm.update::<()>(Err(nb::Error::WouldBlock)));
+        read_sequence(
+            &mut fsm,
+            &[
+                Ok(MN1),
+                Ok(MN2),
+                Err(nb::Error::WouldBlock),
+                Err(nb::Error::WouldBlock),
+            ],
+        );
+
+        assert_eq!(
+            ReadStatus::Failed,
+            fsm.update::<()>(Err(nb::Error::WouldBlock))
+        );
     }
 }
