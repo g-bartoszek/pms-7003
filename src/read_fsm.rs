@@ -32,7 +32,7 @@ impl<'a> ReadStateMachine<'a> {
             buffer,
             index: 0,
             state: State::WaitingForFirstMagicNumber,
-            retries: 100,
+            retries: 10,
         }
     }
 
