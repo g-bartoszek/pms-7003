@@ -52,14 +52,14 @@ where
         Self { serial }
     }
 
-    fn read_from_device(&mut self, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read_from_device<T: AsMut<[u8]>>(&mut self, mut buffer: T) -> Result<T, Error> {
         use read_fsm::*;
 
-        let mut read = ReadStateMachine::new(buffer);
+        let mut read = ReadStateMachine::new(buffer.as_mut());
         loop {
             match read.update(self.serial.read()) {
                 ReadStatus::Failed => return Err(Error::ReadFailed),
-                ReadStatus::Finished => return Ok(()),
+                ReadStatus::Finished => return Ok(buffer),
                 ReadStatus::InProgress => {}
             }
         }
@@ -67,9 +67,7 @@ where
 
     /// Reads sensor status. Blocks until status is available.
     pub fn read(&mut self) -> Result<OutputFrame, Error> {
-        let mut buffer = [0_u8; OUTPUT_FRAME_SIZE];
-        self.read_from_device(&mut buffer)?;
-        OutputFrame::from_buffer(&buffer)
+        OutputFrame::from_buffer(&self.read_from_device([0_u8; OUTPUT_FRAME_SIZE])?)
     }
 
     pub fn sleep(&mut self) -> Result<(), Error> {
@@ -106,10 +104,7 @@ where
     }
 
     fn receive_response(&mut self, expected_response: Response) -> Result<(), Error> {
-        let mut resp = [0u8; RESPONSE_FRAME_SIZE];
-        self.read_from_device(&mut resp)?;
-
-        if resp != expected_response {
+        if self.read_from_device([0u8; RESPONSE_FRAME_SIZE])? != expected_response {
             Err(Error::IncorrectResponse)
         } else {
             Ok(())

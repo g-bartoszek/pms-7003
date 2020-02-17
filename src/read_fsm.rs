@@ -15,6 +15,10 @@ enum State {
     Failed,
 }
 
+/// State machine representing ongoing read from device
+/// * Waits for magic numbers
+/// * Allows for breaks in transmission
+/// * Fails after arbitrary number of read retries
 pub struct ReadStateMachine<'a> {
     buffer: &'a mut [u8],
     index: usize,
