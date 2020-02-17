@@ -51,47 +51,17 @@ where
     }
 
     fn read_from_device(&mut self, buffer: &mut [u8]) -> Result<(), Error> {
-        // poor man's timeout
-        for _ in 0..100 {
-            match self.serial.read() {
-                Ok(b) => {
-                    if b != 0x42 {
-                        continue;
-                    }
-                }
-                Err(nb::Error::WouldBlock) => continue,
-                _ => return Err(Error::ReadFailed),
-            }
+        use read_fsm::*;
 
-            match self.serial.read() {
-                Ok(b) => {
-                    if b == 0x4d {
-                        buffer[0] = 0x42;
-                        buffer[1] = 0x4d;
-
-                        let mut bytes_read = 0;
-                        let mut i = 2usize;
-
-                        while bytes_read != (buffer.len() - 2) {
-                            match self.serial.read() {
-                                Ok(input_byte) => {
-                                    buffer[i] = input_byte;
-                                    i += 1;
-                                    bytes_read += 1;
-                                }
-                                Err(nb::Error::WouldBlock) => continue,
-                                _ => return Err(Error::ReadFailed),
-                            }
-                        }
-
-                        return Ok(());
-                    }
-                }
-                _ => return Err(Error::ReadFailed),
+        let mut read = ReadStateMachine::new(buffer);
+        loop {
+            match read.update(self.serial.read()) {
+                ReadStatus::Failed => return Err(Error::ReadFailed),
+                ReadStatus::Finished => return Ok(()),
+                ReadStatus::InProgress => {}
             }
         }
 
-        Err(Error::NoResponse)
     }
 
     /// Reads sensor status. Blocks until status is available.
