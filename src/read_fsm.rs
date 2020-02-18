@@ -27,12 +27,12 @@ pub struct ReadStateMachine<'a> {
 }
 
 impl<'a> ReadStateMachine<'a> {
-    pub fn new(buffer: &'a mut [u8]) -> Self {
+    pub fn new(buffer: &'a mut [u8], retries: usize) -> Self {
         Self {
             buffer,
             index: 0,
             state: State::WaitingForFirstMagicNumber,
-            retries: 10,
+            retries,
         }
     }
 
