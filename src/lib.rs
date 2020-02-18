@@ -70,6 +70,7 @@ where
         OutputFrame::from_buffer(&self.read_from_device([0_u8; OUTPUT_FRAME_SIZE])?)
     }
 
+    /// Sleep mode. May fail because of incorrect reposnse because of race condition between response and air quality status
     pub fn sleep(&mut self) -> Result<(), Error> {
         self.send_cmd(&create_command(0xe4, 0))?;
         self.receive_response(SLEEP_RESPONSE)
